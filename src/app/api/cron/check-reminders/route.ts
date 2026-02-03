@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFollowUps, getUpcomingMeetings, getTasks } from '@/lib/supabase';
 import { sendReminder as sendSlackReminder } from '@/lib/slack';
 import { chat } from '@/lib/claude';
+import { emitReminderTriggered } from '@/lib/events';
 
 // Vercel Cron: runs every hour to check for reminders
 // Configure in vercel.json
@@ -35,6 +36,16 @@ export async function GET(request: NextRequest) {
               .map((fu) => `• ${fu.contact_name}: ${fu.context.slice(0, 100)}...`)
               .join('\n')
         );
+
+        // Emit ReminderTriggered for each follow-up (non-blocking)
+        for (const fu of highUrgency) {
+          emitReminderTriggered('follow_up', {
+            follow_up_id: fu.id,
+            contact_name: fu.contact_name,
+            urgency: fu.urgency,
+            context: fu.context,
+          }).catch(() => {});
+        }
       }
     }
 
@@ -58,6 +69,13 @@ export async function GET(request: NextRequest) {
             `*📅 Meeting in 30 min: ${meeting.title}*\nPrep: ${meeting.prep_notes}`
           );
         }
+
+        // Emit ReminderTriggered for the meeting (non-blocking)
+        emitReminderTriggered('meeting', {
+          meeting_id: meeting.id,
+          title: meeting.title,
+          attendees: meeting.attendees,
+        }).catch(() => {});
       }
     }
 
@@ -79,6 +97,16 @@ export async function GET(request: NextRequest) {
         `*⚡ ${urgentTasks.length} urgent/high-priority task(s) due today:*\n` +
           urgentTasks.map((t) => `• ${t.title}`).join('\n')
       );
+
+      // Emit ReminderTriggered for each urgent task (non-blocking)
+      for (const task of urgentTasks) {
+        emitReminderTriggered('task', {
+          task_id: task.id,
+          title: task.title,
+          priority: task.priority,
+          due_date: task.due_date,
+        }).catch(() => {});
+      }
     }
 
     // Send reminders if any

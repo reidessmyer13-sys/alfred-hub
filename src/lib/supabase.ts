@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { emitTaskCreated, emitFollowUpCreated } from './events';
 
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || '';
@@ -148,6 +149,10 @@ export async function createTask(task: Omit<Task, 'id' | 'created_at' | 'status'
     .select()
     .single();
   if (error) throw error;
+
+  // Emit TaskCreated event (non-blocking)
+  emitTaskCreated(data as Record<string, unknown>).catch(() => {});
+
   return data as Task;
 }
 
@@ -181,6 +186,10 @@ export async function createFollowUp(followUp: Omit<FollowUp, 'id' | 'created_at
     .select()
     .single();
   if (error) throw error;
+
+  // Emit FollowUpCreated event (non-blocking)
+  emitFollowUpCreated(data as Record<string, unknown>).catch(() => {});
+
   return data as FollowUp;
 }
 

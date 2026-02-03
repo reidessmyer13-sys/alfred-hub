@@ -4,6 +4,7 @@
 import { google, gmail_v1 } from 'googleapis';
 import { getAuthenticatedClient, hasValidCredentials } from './auth';
 import { UnifiedEmail } from '../data-sources/types';
+import { emitEmailThreadFetched } from '../events';
 
 // Get authenticated Gmail API client
 async function getGmailClient(): Promise<gmail_v1.Gmail | null> {
@@ -118,6 +119,11 @@ export async function getEmailsNeedingResponse(maxResults: number = 20): Promise
         const email = transformMessage(fullMessage.data);
         if (email && email.needsResponse) {
           emails.push(email);
+          // Emit event for fetched email thread (non-blocking)
+          emitEmailThreadFetched(
+            email as unknown as Record<string, unknown>,
+            email.date
+          ).catch(() => {}); // Fire and forget
         }
       } catch (err) {
         console.error(`[Gmail] Failed to fetch message ${msg.id}:`, err);
@@ -165,6 +171,11 @@ export async function getEmailsForContact(email: string, maxResults: number = 10
         const emailData = transformMessage(fullMessage.data);
         if (emailData) {
           emails.push(emailData);
+          // Emit event for fetched email thread (non-blocking)
+          emitEmailThreadFetched(
+            emailData as unknown as Record<string, unknown>,
+            emailData.date
+          ).catch(() => {}); // Fire and forget
         }
       } catch (err) {
         console.error(`[Gmail] Failed to fetch message ${msg.id}:`, err);
@@ -256,6 +267,11 @@ export async function searchEmails(query: string, maxResults: number = 20): Prom
         const email = transformMessage(fullMessage.data);
         if (email) {
           emails.push(email);
+          // Emit event for fetched email thread (non-blocking)
+          emitEmailThreadFetched(
+            email as unknown as Record<string, unknown>,
+            email.date
+          ).catch(() => {}); // Fire and forget
         }
       } catch (err) {
         console.error(`[Gmail] Failed to fetch message ${msg.id}:`, err);

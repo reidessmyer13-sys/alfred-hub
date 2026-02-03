@@ -4,6 +4,7 @@
 import { google, calendar_v3 } from 'googleapis';
 import { getAuthenticatedClient, hasValidCredentials } from './auth';
 import { UnifiedMeeting, AttendeeContext } from '../data-sources/types';
+import { emitCalendarEventFetched } from '../events';
 
 // Get authenticated Calendar API client
 async function getCalendarClient(): Promise<calendar_v3.Calendar | null> {
@@ -70,9 +71,19 @@ export async function getTodaysMeetings(): Promise<UnifiedMeeting[]> {
     });
 
     const events = response.data.items || [];
-    return events
+    const meetings = events
       .filter((e) => e.status !== 'cancelled')
       .map(transformEvent);
+
+    // Emit events for each fetched meeting (non-blocking)
+    for (const meeting of meetings) {
+      emitCalendarEventFetched(
+        meeting as unknown as Record<string, unknown>,
+        meeting.startTime
+      ).catch(() => {}); // Fire and forget - don't block on event emission
+    }
+
+    return meetings;
   } catch (error) {
     console.error('[Google Calendar] Failed to fetch today\'s meetings:', error);
     return [];
@@ -98,9 +109,19 @@ export async function getUpcomingMeetings(hoursAhead: number = 168): Promise<Uni
     });
 
     const events = response.data.items || [];
-    return events
+    const meetings = events
       .filter((e) => e.status !== 'cancelled')
       .map(transformEvent);
+
+    // Emit events for each fetched meeting (non-blocking)
+    for (const meeting of meetings) {
+      emitCalendarEventFetched(
+        meeting as unknown as Record<string, unknown>,
+        meeting.startTime
+      ).catch(() => {}); // Fire and forget
+    }
+
+    return meetings;
   } catch (error) {
     console.error('[Google Calendar] Failed to fetch upcoming meetings:', error);
     return [];
@@ -126,9 +147,19 @@ export async function getMeetingsInRange(
     });
 
     const events = response.data.items || [];
-    return events
+    const meetings = events
       .filter((e) => e.status !== 'cancelled')
       .map(transformEvent);
+
+    // Emit events for each fetched meeting (non-blocking)
+    for (const meeting of meetings) {
+      emitCalendarEventFetched(
+        meeting as unknown as Record<string, unknown>,
+        meeting.startTime
+      ).catch(() => {}); // Fire and forget
+    }
+
+    return meetings;
   } catch (error) {
     console.error('[Google Calendar] Failed to fetch meetings in range:', error);
     return [];
