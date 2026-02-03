@@ -187,6 +187,30 @@ export async function getContactActivities(contactId: string, limit: number = 10
   return query<SalesforceActivity>(soql);
 }
 
+// Get total pipeline value (open opportunities)
+export async function getPipelineValue(): Promise<number> {
+  if (!(await isConfigured())) {
+    console.log('[Salesforce] Not configured, skipping getPipelineValue');
+    return 0;
+  }
+
+  console.log('[Salesforce] Fetching pipeline value');
+
+  const soql = `
+    SELECT SUM(Amount) total
+    FROM Opportunity
+    WHERE IsClosed = false
+    AND Amount != null
+  `;
+
+  interface AggregateResult {
+    total: number;
+  }
+
+  const results = await query<AggregateResult>(soql);
+  return results[0]?.total || 0;
+}
+
 // Get opportunities by account name
 export async function getOpportunitiesByAccount(accountName: string): Promise<UnifiedOpportunity[]> {
   if (!(await isConfigured())) {

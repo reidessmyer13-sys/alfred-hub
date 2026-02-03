@@ -139,3 +139,58 @@ export async function searchMemory(query: string, category?: string) {
   if (error) throw error;
   return data as MemoryLog[];
 }
+
+// Task CRUD operations
+export async function createTask(task: Omit<Task, 'id' | 'created_at' | 'status'>) {
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert({ ...task, status: 'pending' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Task;
+}
+
+export async function updateTask(id: string, updates: Partial<Task>) {
+  const { data, error } = await supabase
+    .from('tasks')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Task;
+}
+
+export async function completeTask(id: string) {
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Task;
+}
+
+// Follow-up CRUD operations
+export async function createFollowUp(followUp: Omit<FollowUp, 'id' | 'created_at' | 'status'>) {
+  const { data, error } = await supabase
+    .from('follow_ups')
+    .insert({ ...followUp, status: 'pending' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as FollowUp;
+}
+
+export async function completeFollowUp(id: string) {
+  const { data, error } = await supabase
+    .from('follow_ups')
+    .update({ status: 'completed' })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as FollowUp;
+}
