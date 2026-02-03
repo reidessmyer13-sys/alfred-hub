@@ -7,7 +7,7 @@ import { getTodaysMeetings } from '@/lib/data-sources/calendar';
 
 // Allow CORS from v0 dashboard
 const corsHeaders = {
-  'Access-Control-Allow-Origin': process.env.V0_DASHBOARD_URL || 'https://v0-alfred-hub.vercel.app',
+  'Access-Control-Allow-Origin': process.env.V0_DASHBOARD_URL || 'https://v0-sales-assistant-dashboard-gd.vercel.sh',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };

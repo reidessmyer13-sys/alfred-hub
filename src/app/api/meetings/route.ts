@@ -4,7 +4,7 @@ import { getTodaysMeetings, getUpcomingMeetings } from '@/lib/data-sources/calen
 import { getUpcomingMeetings as getAlfredMeetings } from '@/lib/supabase';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': process.env.V0_DASHBOARD_URL || 'https://v0-alfred-hub.vercel.app',
+  'Access-Control-Allow-Origin': process.env.V0_DASHBOARD_URL || 'https://v0-sales-assistant-dashboard-gd.vercel.sh',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
