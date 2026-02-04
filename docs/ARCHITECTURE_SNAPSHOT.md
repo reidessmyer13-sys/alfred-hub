@@ -1,7 +1,9 @@
 # Alfred Hub Architecture Snapshot
 
-**Snapshot Date:** 2025-01-31
-**Commit:** `eb78b55` – "feat: lock canonical events, context graph, pre/post meeting intelligence, and granola ingestion"
+**Snapshot Date:** 2026-02-04
+**Last Deploy Commit:** `c0e7117` – "feat: add chat UI page for direct Alfred interaction"
+**Production URL:** `https://alfred-hub-iota.vercel.app`
+**Chat UI:** `https://alfred-hub-iota.vercel.app/chat`
 
 ---
 
@@ -282,19 +284,43 @@ CREATE TABLE events (
 |---------|---------|-------|
 | GitHub | `reidessmyer13-sys` | Personal account only |
 | Vercel | `reidessmyer13-9981` | Hobby plan, personal account |
+| Vercel Project ID | `prj_kE6PNtxoH2uwreeu7ewIfk84H0gD` | reid-essmyers-projects/alfred-hub |
+| Vercel User ID | `iJNwTjbEjQUggUtciJMc0HAB` | For API access |
 | Supabase | (configured in env) | Events table lives here |
+
+**Production URL:** `https://alfred-hub-iota.vercel.app`
 
 **Important:** Do NOT use work accounts (reid.essmyer@vercel.com, reidessmyer)
 
 ---
 
-## Next Steps (Not Yet Implemented)
+## Recent Updates (2026-02-04)
 
-1. **API Endpoints** – Expose pre/post meeting intelligence via REST
-2. **Dashboard Integration** – Connect v0 frontend to intelligence endpoints
-3. **Scheduled Briefings** – Cron job to generate daily meeting briefs
-4. **Slack Integration** – Surface insights in Slack channels
+### Deployed Features
+1. **Chat UI** – Browser-based chat at `/chat` for direct Alfred interaction
+2. **Chat API** – POST `/api/chat` with conversation history support
+3. **TypeScript Fixes** – All build errors resolved, strict mode passing
+
+### TypeScript Fixes Applied
+- Removed unused `AttendeeContext` import in `calendar.ts`
+- Added missing `trigger_type` field in follow-ups API route
+- Extracted `RelatedThread` and `RelatedFollowUp` as standalone interfaces in postMeeting types
+
+### Environment Variables Configured in Vercel
+- `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
+- `ANTHROPIC_API_KEY`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+- `GRANOLA_WEBHOOK_SECRET`
 
 ---
 
-*This snapshot represents the state of Alfred Hub as of commit `eb78b55`. All modules are tested and functional.*
+## Next Steps (Not Yet Implemented)
+
+1. **Dashboard Integration** – Connect v0 frontend to intelligence endpoints
+2. **Scheduled Briefings** – Configure Vercel cron jobs
+3. **Slack Integration** – Surface insights in Slack channels
+4. **Google OAuth Flow** – Complete OAuth setup for Calendar/Gmail access
+
+---
+
+*This snapshot represents the state of Alfred Hub as of commit `c0e7117`. Production deployment is live at https://alfred-hub-iota.vercel.app*
