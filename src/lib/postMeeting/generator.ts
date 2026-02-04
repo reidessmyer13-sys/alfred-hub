@@ -17,6 +17,8 @@ import {
 import type {
   PostMeetingInsights,
   SurfacedContext,
+  RelatedThread,
+  RelatedFollowUp,
 } from './types';
 
 /**
@@ -24,7 +26,7 @@ import type {
  */
 function extractRelatedFollowUps(
   events: TimelineEvent[]
-): SurfacedContext['related_follow_ups'] {
+): RelatedFollowUp[] {
   return events
     .filter((e) => e.type === 'FollowUpCreated')
     .map((e) => ({
@@ -40,8 +42,8 @@ function extractRelatedFollowUps(
  */
 function extractRelatedThreads(
   events: TimelineEvent[]
-): SurfacedContext['related_threads'] {
-  const threadMap = new Map<string, SurfacedContext['related_threads'][0]>();
+): RelatedThread[] {
+  const threadMap = new Map<string, RelatedThread>();
 
   for (const event of events) {
     if (event.type !== 'EmailThreadFetched') continue;

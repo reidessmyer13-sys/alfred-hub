@@ -17,4 +17,6 @@ export type {
   PostMeetingInsights,
   ExtractedAction,
   SurfacedContext,
+  RelatedThread,
+  RelatedFollowUp,
 } from './types';

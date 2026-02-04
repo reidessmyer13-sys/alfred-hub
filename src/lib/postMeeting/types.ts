@@ -21,6 +21,25 @@ export interface ExtractedAction {
 }
 
 /**
+ * A related email thread
+ */
+export interface RelatedThread {
+  thread_id: string;
+  subject: string;
+  last_activity: Date;
+}
+
+/**
+ * A related follow-up
+ */
+export interface RelatedFollowUp {
+  event_id: string;
+  contact_name: string;
+  context: string;
+  urgency: string;
+}
+
+/**
  * Related context from other data sources
  */
 export interface SurfacedContext {
@@ -30,18 +49,9 @@ export interface SurfacedContext {
     account_id?: string;
   };
   // Existing follow-ups for attendees
-  related_follow_ups?: {
-    event_id: string;
-    contact_name: string;
-    context: string;
-    urgency: string;
-  }[];
+  related_follow_ups?: RelatedFollowUp[];
   // Recent email threads with attendees
-  related_threads?: {
-    thread_id: string;
-    subject: string;
-    last_activity: Date;
-  }[];
+  related_threads?: RelatedThread[];
 }
 
 /**
