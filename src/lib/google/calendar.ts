@@ -3,7 +3,7 @@
 
 import { google, calendar_v3 } from 'googleapis';
 import { getAuthenticatedClient, hasValidCredentials } from './auth';
-import { UnifiedMeeting, AttendeeContext } from '../data-sources/types';
+import { UnifiedMeeting } from '../data-sources/types';
 import { emitCalendarEventFetched } from '../events';
 
 // Get authenticated Calendar API client
