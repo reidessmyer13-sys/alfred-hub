@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { emitGranolaTranscriptFetched } from '@/lib/events';
+import { findLinkedMeeting, findLinkedOpportunity } from '@/lib/granola/linker';
 
 // Webhook secret for Zapier authentication
 const WEBHOOK_SECRET = process.env.GRANOLA_WEBHOOK_SECRET;
@@ -82,10 +84,42 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // === EMIT CANONICAL EVENT ===
+    // Link transcript to meeting and opportunity if possible
+    const linkedMeeting = await findLinkedMeeting(note.title, note.meeting_date, note.attendees);
+    const linkedOpportunity = await findLinkedOpportunity(note.attendees);
+
+    await emitGranolaTranscriptFetched(
+      {
+        id: note.id,
+        title: note.title,
+        content: note.content,
+        summary: note.summary,
+        action_items: note.action_items,
+        attendees: note.attendees,
+        meeting_date: note.meeting_date,
+        duration_minutes: note.duration_minutes,
+        tags: note.tags,
+      },
+      {
+        transcript_id: note.id,
+        meeting_id: linkedMeeting?.meeting_id,
+        person_ids: note.attendees || [],
+        account_id: linkedOpportunity?.account_id,
+        opportunity_id: linkedOpportunity?.opportunity_id,
+      }
+    );
+
+    console.log('[Granola Webhook] Emitted GranolaTranscriptFetched event');
+
     return NextResponse.json({
       success: true,
-      message: 'Note stored successfully',
+      message: 'Note stored and event emitted',
       id: data.id,
+      linked: {
+        meeting_id: linkedMeeting?.meeting_id,
+        opportunity_id: linkedOpportunity?.opportunity_id,
+      },
     });
   } catch (error) {
     console.error('[Granola Webhook] Error:', error);

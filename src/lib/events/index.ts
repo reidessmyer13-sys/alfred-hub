@@ -134,3 +134,41 @@ export async function emitReminderTriggered(
     },
   });
 }
+
+/**
+ * Emit GranolaTranscriptFetched when a transcript is ingested
+ * Links transcript to meeting and attendees
+ */
+export async function emitGranolaTranscriptFetched(
+  transcript: Record<string, unknown>,
+  entities: {
+    transcript_id: string;
+    meeting_id?: string;
+    person_ids?: string[];
+    account_id?: string;
+    opportunity_id?: string;
+  }
+): Promise<void> {
+  const meetingDate = transcript.meeting_date
+    ? new Date(transcript.meeting_date as string)
+    : new Date();
+
+  return writeEvent({
+    type: 'GranolaTranscriptFetched',
+    source: 'granola',
+    occurred_at: meetingDate,
+    entities: {
+      transcript_id: entities.transcript_id,
+      meeting_id: entities.meeting_id,
+      person_ids: entities.person_ids || [],
+      account_id: entities.account_id,
+      opportunity_id: entities.opportunity_id,
+    },
+    raw_payload: transcript,
+    derived_metadata: {
+      title: transcript.title,
+      has_action_items: Array.isArray(transcript.action_items) && transcript.action_items.length > 0,
+      attendee_count: entities.person_ids?.length || 0,
+    },
+  });
+}

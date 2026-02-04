@@ -22,14 +22,15 @@ function getEventSupabase(): SupabaseClient {
   return _eventSupabase;
 }
 
-// Event Types - only what exists today
+// Event Types
 export type EventType =
   | 'CalendarEventFetched'
   | 'EmailThreadFetched'
   | 'EmailSent'
   | 'TaskCreated'
   | 'FollowUpCreated'
-  | 'ReminderTriggered';
+  | 'ReminderTriggered'
+  | 'GranolaTranscriptFetched';
 
 // Source Systems
 export type SourceSystem =
@@ -47,6 +48,7 @@ export interface EventEntities {
   opportunity_id?: string;
   meeting_id?: string;
   thread_id?: string;
+  transcript_id?: string;
 }
 
 // Event payload for writing
