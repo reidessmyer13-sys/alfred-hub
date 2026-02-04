@@ -43,21 +43,30 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { contactName, contactEmail, context, urgency, reminderDate } = body;
+    const { contactName, contactEmail, context, urgency, reminderDate, triggerType } = body;
 
-    if (!context) {
+    if (!contactName || !context || !reminderDate) {
       return NextResponse.json(
-        { error: 'Context is required' },
+        { error: 'contactName, context, and reminderDate are required' },
         { status: 400, headers: corsHeaders }
       );
     }
 
+    // Validate urgency value
+    const validUrgency: 'low' | 'medium' | 'high' =
+      urgency === 'low' || urgency === 'high' ? urgency : 'medium';
+
+    // Validate trigger_type value
+    const validTriggerType: 'date' | 'before_meeting' | 'manual' =
+      triggerType === 'before_meeting' || triggerType === 'manual' ? triggerType : 'date';
+
     const followUp = await createFollowUp({
-      contact_name: contactName,
-      contact_email: contactEmail,
-      context,
-      urgency: urgency || 'medium',
-      reminder_date: reminderDate,
+      contact_name: contactName as string,
+      contact_email: contactEmail as string | undefined,
+      context: context as string,
+      urgency: validUrgency,
+      trigger_type: validTriggerType,
+      reminder_date: reminderDate as string,
     });
 
     return NextResponse.json({ followUp }, { headers: corsHeaders });
