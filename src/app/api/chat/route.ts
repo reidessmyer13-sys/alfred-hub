@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getContextForPrompt } from '@/lib/data-sources/aggregator';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': process.env.V0_DASHBOARD_URL || 'https://v0-sales-assistant-dashboard-gd.vercel.sh',
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
