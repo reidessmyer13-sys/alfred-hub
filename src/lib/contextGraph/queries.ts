@@ -418,3 +418,101 @@ export async function getTranscriptsForPerson(
 
   return (data as EventRow[]).map(toTimelineEvent);
 }
+
+/**
+ * Get recent activity feed - all events ordered chronologically (newest first)
+ * Used for the Activity Feed in the dashboard
+ *
+ * @param limit - Maximum number of events to return (default 50)
+ * @param types - Optional filter by event types
+ */
+export async function getActivityFeed(
+  limit: number = 50,
+  types?: string[]
+): Promise<TimelineEvent[]> {
+  const client = getContextGraphClient();
+
+  let query = client
+    .from('events')
+    .select('*')
+    .order('occurred_at', { ascending: false })
+    .limit(limit);
+
+  if (types && types.length > 0) {
+    query = query.in('type', types);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('[ContextGraph] getActivityFeed error:', error.message);
+    return [];
+  }
+
+  return (data as EventRow[]).map(toTimelineEvent);
+}
+
+/**
+ * Get today's events
+ * Used for the dashboard agenda
+ */
+export async function getTodaysEvents(): Promise<TimelineEvent[]> {
+  const client = getContextGraphClient();
+
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+  const { data, error } = await client
+    .from('events')
+    .select('*')
+    .gte('occurred_at', startOfDay.toISOString())
+    .lt('occurred_at', endOfDay.toISOString())
+    .order('occurred_at', { ascending: true });
+
+  if (error) {
+    console.error('[ContextGraph] getTodaysEvents error:', error.message);
+    return [];
+  }
+
+  return (data as EventRow[]).map(toTimelineEvent);
+}
+
+/**
+ * Get event counts by type for a given time range
+ * Used for dashboard stats
+ */
+export async function getEventStats(daysBack: number = 7): Promise<{
+  total: number;
+  byType: Record<string, number>;
+  bySource: Record<string, number>;
+}> {
+  const client = getContextGraphClient();
+
+  const since = new Date();
+  since.setDate(since.getDate() - daysBack);
+
+  const { data, error } = await client
+    .from('events')
+    .select('type, source')
+    .gte('occurred_at', since.toISOString());
+
+  if (error) {
+    console.error('[ContextGraph] getEventStats error:', error.message);
+    return { total: 0, byType: {}, bySource: {} };
+  }
+
+  const byType: Record<string, number> = {};
+  const bySource: Record<string, number> = {};
+
+  for (const row of data || []) {
+    byType[row.type] = (byType[row.type] || 0) + 1;
+    bySource[row.source] = (bySource[row.source] || 0) + 1;
+  }
+
+  return {
+    total: data?.length || 0,
+    byType,
+    bySource,
+  };
+}

@@ -1,9 +1,9 @@
 # Alfred Hub Architecture Snapshot
 
 **Snapshot Date:** 2026-02-04
-**Last Deploy Commit:** `c0e7117` – "feat: add chat UI page for direct Alfred interaction"
+**Last Deploy Commit:** Pending – "feat: complete UI with dashboard, chat, tasks, follow-ups, contacts, meetings, integrations, settings"
 **Production URL:** `https://alfred-hub-iota.vercel.app`
-**Chat UI:** `https://alfred-hub-iota.vercel.app/chat`
+**Dashboard UI:** `https://alfred-hub-iota.vercel.app/dashboard`
 
 ---
 
@@ -22,68 +22,170 @@ Alfred is an AI-powered sales assistant built on an event-sourced architecture. 
 ## Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        DATA SOURCES                              │
-├──────────┬──────────┬──────────┬──────────┬────────────────────┤
-│ Google   │ Gmail    │Salesforce│ Granola  │ Alfred Internal    │
-│ Calendar │          │          │Transcripts│ (Tasks/Follow-ups) │
-└────┬─────┴────┬─────┴────┬─────┴────┬─────┴─────────┬──────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              ALFRED UI                                       │
+│  Dashboard • Chat • Tasks • Follow-ups • Contacts • Meetings • Settings     │
+│  src/app/dashboard/                                                          │
+│  - Light/dark mode toggle                                                   │
+│  - Simple password authentication                                           │
+└────────────────────────────────────┬────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              API LAYER                                       │
+│  /api/chat • /api/dashboard • /api/activity • /api/tasks • /api/follow-ups  │
+│  /api/contacts • /api/meetings • /api/auth/* • /api/webhooks/*              │
+└────────────────────────────────────┬────────────────────────────────────────┘
+                                     │
+              ┌──────────────────────┼──────────────────────┐
+              ▼                      ▼                      ▼
+┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐
+│  AI CONTEXT BUILDER  │ │  SLACK NOTIFIER      │ │  DATA AGGREGATOR     │
+│  src/lib/ai/         │ │  src/lib/            │ │  src/lib/            │
+│  buildAssistant      │ │  notifications/      │ │  data-sources/       │
+│  Context.ts          │ │  slackNotifier.ts    │ │  aggregator.ts       │
+│                      │ │                      │ │                      │
+│  Compiles context    │ │  Sends notifications │ │  Combines all        │
+│  for Claude from     │ │  via Slack webhook   │ │  sources into        │
+│  Context Graph +     │ │  for urgent items    │ │  unified briefing    │
+│  Aggregator          │ │                      │ │                      │
+└──────────┬───────────┘ └──────────────────────┘ └──────────┬───────────┘
+           │                                                  │
+           └──────────────────────┬───────────────────────────┘
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        DATA SOURCES                                          │
+├──────────┬──────────┬──────────┬──────────┬────────────────────────────────┤
+│ Google   │ Gmail    │Salesforce│ Granola  │ Alfred Internal                 │
+│ Calendar │          │          │Transcripts│ (Tasks/Follow-ups)              │
+└────┬─────┴────┬─────┴────┬─────┴────┬─────┴─────────┬──────────────────────┘
      │          │          │          │               │
      ▼          ▼          ▼          ▼               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    EVENT INGESTION LAYER                         │
-│  src/lib/events/eventWriter.ts                                   │
-│  - writeEvent() / writeEvents()                                  │
-│  - Emit functions for each event type                           │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    CANONICAL EVENTS TABLE                        │
-│  Supabase: events                                                │
-│  - id, type, source, occurred_at, ingested_at                   │
-│  - entities (JSONB): person_ids, account_id, opportunity_id,    │
-│    meeting_id, thread_id, transcript_id                         │
-│  - raw_payload, derived_metadata                                │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    CONTEXT GRAPH LAYER                           │
-│  src/lib/contextGraph/ (READ-ONLY)                               │
-│  - getTimelineForPerson()                                        │
-│  - getEventsForMeeting()                                         │
-│  - getEventsForThread()                                          │
-│  - getRecentInteractionsForPerson()                              │
-│  - getPersonCooccurrences()                                      │
-│  - getEventsForAccount()                                         │
-│  - getEventsForOpportunity()                                     │
-│  - getEventsForTranscript()                                      │
-│  - getRecentTranscripts()                                        │
-│  - getTranscriptsForMeeting()                                    │
-│  - getTranscriptsForPerson()                                     │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              ▼                ▼                ▼
-┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-│  PRE-MEETING     │ │  POST-MEETING    │ │  GRANOLA         │
-│  INTELLIGENCE    │ │  INTELLIGENCE    │ │  LINKER          │
-│  src/lib/        │ │  src/lib/        │ │  src/lib/granola │
-│  preMeeting/     │ │  postMeeting/    │ │  /linker.ts      │
-│                  │ │                  │ │                  │
-│  Generates       │ │  Extracts        │ │  Links           │
-│  structured      │ │  explicit        │ │  transcripts     │
-│  briefings       │ │  actions from    │ │  to meetings &   │
-│  before meetings │ │  transcripts     │ │  opportunities   │
-└──────────────────┘ └──────────────────┘ └──────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      EVENT INGESTION LAYER                                   │
+│  src/lib/events/eventWriter.ts                                               │
+│  - writeEvent() / writeEvents()                                              │
+│  - Emit functions for each event type                                        │
+└────────────────────────────────────┬────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      CANONICAL EVENTS TABLE                                  │
+│  Supabase: events                                                            │
+│  - id, type, source, occurred_at, ingested_at                               │
+│  - entities (JSONB): person_ids, account_id, opportunity_id,                │
+│    meeting_id, thread_id, transcript_id                                     │
+│  - raw_payload, derived_metadata                                            │
+└────────────────────────────────────┬────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      CONTEXT GRAPH LAYER                                     │
+│  src/lib/contextGraph/ (READ-ONLY)                                           │
+│  - getTimelineForPerson()          - getEventsForOpportunity()              │
+│  - getEventsForMeeting()           - getEventsForTranscript()               │
+│  - getEventsForThread()            - getRecentTranscripts()                 │
+│  - getRecentInteractionsForPerson()- getTranscriptsForMeeting()             │
+│  - getPersonCooccurrences()        - getTranscriptsForPerson()              │
+│  - getEventsForAccount()           - getActivityFeed() [NEW]                │
+│                                    - getTodaysEvents() [NEW]                │
+│                                    - getEventStats() [NEW]                  │
+└────────────────────────────────────┬────────────────────────────────────────┘
+                                     │
+              ┌──────────────────────┼──────────────────────┐
+              ▼                      ▼                      ▼
+┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐
+│  PRE-MEETING         │ │  POST-MEETING        │ │  GRANOLA             │
+│  INTELLIGENCE        │ │  INTELLIGENCE        │ │  LINKER              │
+│  src/lib/            │ │  src/lib/            │ │  src/lib/granola     │
+│  preMeeting/         │ │  postMeeting/        │ │  /linker.ts          │
+│                      │ │                      │ │                      │
+│  Generates           │ │  Extracts            │ │  Links               │
+│  structured          │ │  explicit            │ │  transcripts         │
+│  briefings           │ │  actions from        │ │  to meetings &       │
+│  before meetings     │ │  transcripts         │ │  opportunities       │
+└──────────────────────┘ └──────────────────────┘ └──────────────────────┘
 ```
 
 ---
 
 ## Completed Modules
 
-### 1. Canonical Event System
+### 1. UI Layer (NEW - 2026-02-04)
+**Location:** `src/app/dashboard/`, `src/components/`
+
+| Component | Purpose |
+|-----------|---------|
+| `dashboard/page.tsx` | Main dashboard with stats, insights, agenda, tasks |
+| `dashboard/chat/page.tsx` | Chat interface with Alfred |
+| `dashboard/tasks/page.tsx` | Task management CRUD |
+| `dashboard/follow-ups/page.tsx` | Follow-up tracking |
+| `dashboard/contacts/page.tsx` | Contact directory |
+| `dashboard/meetings/page.tsx` | Meeting calendar |
+| `dashboard/integrations/page.tsx` | Integration status |
+| `dashboard/settings/page.tsx` | User preferences |
+| `components/layout/Sidebar.tsx` | Navigation sidebar |
+| `components/layout/DashboardLayout.tsx` | Dashboard wrapper |
+| `components/providers/ThemeProvider.tsx` | Light/dark mode |
+| `components/providers/AuthProvider.tsx` | Auth context |
+| `login/page.tsx` | Login page |
+
+**Features:**
+- Light/dark mode toggle with persistence
+- Simple password authentication
+- Responsive design with Tailwind CSS
+- Real-time data from API endpoints
+
+### 2. AI Context Builder (NEW - 2026-02-04)
+**Location:** `src/lib/ai/buildAssistantContext.ts`
+
+Builds comprehensive context for Claude by combining:
+- Context Graph queries (events, transcripts, activity)
+- Data aggregator (briefings, insights)
+- Supabase data (tasks, follow-ups, contacts, meetings)
+
+**Output:**
+```typescript
+interface AssistantContext {
+  timestamp: Date;
+  summary: string;  // Formatted string for Claude prompt
+  structured: {
+    todaysMeetings: Array<{ title, time, attendees }>;
+    pendingTasks: Array<{ title, priority, dueDate }>;
+    urgentFollowUps: Array<{ contactName, context, urgency }>;
+    recentActivity: Array<{ type, summary, when }>;
+    recentTranscripts: Array<{ title, when }>;
+    upcomingDeadlines: Array<{ item, dueDate, type }>;
+    eventStats: { total, byType };
+  };
+}
+```
+
+### 3. Slack Notifier (NEW - 2026-02-04)
+**Location:** `src/lib/notifications/slackNotifier.ts`
+
+Sends notifications via Slack Incoming Webhook:
+- `notifyUrgentTask()` - Urgent task due soon
+- `notifyOverdueFollowUp()` - Follow-up overdue
+- `notifyMeetingReminder()` - Meeting starts soon
+- `notifyActionItems()` - Action items from transcript
+- `notifyDailyBriefing()` - Morning briefing
+- `notifyEndOfDay()` - End of day summary
+
+### 4. Activity Feed API (NEW - 2026-02-04)
+**Location:** `src/app/api/activity/route.ts`
+
+New API endpoint for activity feed:
+- `GET /api/activity?view=feed&limit=50` - Recent activity
+- `GET /api/activity?view=today` - Today's events
+- `GET /api/activity?view=stats&days=7` - Event statistics
+
+New Context Graph queries:
+- `getActivityFeed(limit, types)` - Chronological event feed
+- `getTodaysEvents()` - Events for current day
+- `getEventStats(daysBack)` - Event counts by type/source
+
+### 5. Canonical Event System
 **Location:** `src/lib/events/`
 
 | File | Purpose |
@@ -101,74 +203,32 @@ Alfred is an AI-powered sales assistant built on an event-sourced architecture. 
 - `ReminderTriggered` – reminder notifications
 - `GranolaTranscriptFetched` – meeting transcripts
 
-**Source Systems:**
-- `google_calendar`, `gmail`, `salesforce`, `granola`, `slack`, `alfred_internal`
-
-### 2. Context Graph Layer
+### 6. Context Graph Layer
 **Location:** `src/lib/contextGraph/`
 
 | File | Purpose |
 |------|---------|
 | `client.ts` | Supabase client for read-only queries |
-| `queries.ts` | All query functions |
+| `queries.ts` | All query functions (including new activity queries) |
 | `types.ts` | TimelineEvent, PersonInteraction, CooccurrenceResult |
 | `index.ts` | Public exports |
 
 **Key Constraint:** This layer is strictly READ-ONLY. No writes, no Claude calls, no inference.
 
-### 3. Pre-Meeting Intelligence
+### 7. Pre-Meeting Intelligence
 **Location:** `src/lib/preMeeting/`
 
-| File | Purpose |
-|------|---------|
-| `generator.ts` | Generates PreMeetingBrief from Context Graph |
-| `types.ts` | PreMeetingBrief, AttendeeContext interfaces |
-| `index.ts` | Public exports |
+Generates structured briefings before meetings.
 
-**Output Structure:**
-```typescript
-interface PreMeetingBrief {
-  meeting_id: string;
-  meeting_title: string;
-  meeting_time: Date;
-  attendees: AttendeeContext[];
-  recent_interactions: PersonInteraction[];
-  open_follow_ups: TimelineEvent[];
-  related_threads: TimelineEvent[];
-  related_opportunity?: { opportunity_id, account_id };
-  generated_at: Date;
-}
-```
-
-### 4. Post-Meeting Intelligence
+### 8. Post-Meeting Intelligence
 **Location:** `src/lib/postMeeting/`
 
-| File | Purpose |
-|------|---------|
-| `extractor.ts` | Deterministic action extraction with regex patterns |
-| `generator.ts` | Combines extraction with context correlation |
-| `types.ts` | ExtractedAction, SurfacedContext, PostMeetingInsights |
-| `index.ts` | Public exports |
+Extracts explicit actions from transcripts using deterministic patterns.
 
-**Extraction Patterns:**
-- Action item markers: `action item:`, `to-do:`, `task:`, `next step:`
-- Commitments: `I'll`, `We'll`, `I will`, `Let me`
-- Time-bound: `by Monday`, `within 3 days`, `before EOD`
-- Follow-ups: `follow up with`, `reach out to`, `schedule a call`
-
-**Key Constraint:** Extraction is deterministic – no inference, no scoring, no guessing.
-
-### 5. Granola Integration
+### 9. Granola Integration
 **Location:** `src/lib/granola/`, `src/app/api/webhooks/granola/`
 
-| File | Purpose |
-|------|---------|
-| `linker.ts` | READ-ONLY context linker for meetings & opportunities |
-| `route.ts` | Webhook handler that emits GranolaTranscriptFetched events |
-
-**Linking Logic:**
-- Matches transcripts to calendar events by title similarity + attendee overlap
-- Finds related Salesforce opportunities by attendee overlap
+Links transcripts to calendar events and opportunities.
 
 ---
 
@@ -198,83 +258,45 @@ CREATE TABLE events (
 );
 ```
 
-### Indexes
-- `idx_events_occurred_at` – for time-range queries
-- `idx_events_account_id` – for account lookups
-- `idx_events_opportunity_id` – for opportunity lookups
-- `idx_events_person_ids` – GIN index for person array containment
-- `idx_events_transcript_id` – for transcript lookups
+---
 
-### Migrations
-| Migration | Purpose |
-|-----------|---------|
-| `001_create_events_table.sql` | Initial events table + indexes |
-| `002_add_granola_event_type.sql` | Add GranolaTranscriptFetched type |
+## Environment Variables
+
+### Required in Vercel
+| Variable | Purpose |
+|----------|---------|
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_SERVICE_KEY` | Supabase service role key |
+| `ANTHROPIC_API_KEY` | Claude API key |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth secret |
+| `GOOGLE_REDIRECT_URI` | OAuth callback URL |
+| `GRANOLA_WEBHOOK_SECRET` | Webhook authentication |
+| `ALFRED_PASSWORD` | UI authentication (NEW) |
+| `SLACK_WEBHOOK_URL` | Slack notifications (NEW) |
 
 ---
 
-## Constraints & Design Decisions
+## API Routes
 
-### What We DON'T Do
-1. **No event mutation** – events are immutable once written
-2. **No inference in extraction** – only explicit, stated actions
-3. **No Claude calls in Context Graph** – purely deterministic queries
-4. **No automated actions** – intelligence is surfaced for human review
-
-### Naming Conventions
-- Event types use PascalCase with past tense verbs: `CalendarEventFetched`
-- Source systems use snake_case: `google_calendar`
-- Entity fields use snake_case: `person_ids`, `meeting_id`
-
-### Error Handling
-- All event writes include error logging
-- Context Graph queries return empty arrays on error (never throw)
-- Webhook handlers respond 200 even on partial failure (to avoid retries)
-
----
-
-## Recovery Instructions
-
-### To Resume Development
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/reidessmyer13-sys/alfred-hub.git
-   cd alfred-hub
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Set up environment variables (see `.env.example` or CLAUDE.md)
-
-4. Run migrations in Supabase:
-   - `001_create_events_table.sql` (if not already run)
-   - `002_add_granola_event_type.sql`
-
-5. Start development server:
-   ```bash
-   npm run dev
-   ```
-
-### To Verify System Health
-1. Check events are flowing:
-   ```bash
-   curl -H "Authorization: Bearer $CRON_SECRET" \
-     https://your-domain.vercel.app/api/debug/events
-   ```
-
-2. Verify event counts in Supabase:
-   ```sql
-   SELECT type, COUNT(*) FROM events GROUP BY type;
-   ```
-
-### Key Files to Review When Resuming
-1. `src/lib/events/eventWriter.ts` – understand event structure
-2. `src/lib/contextGraph/queries.ts` – see available queries
-3. `src/lib/postMeeting/extractor.ts` – see extraction patterns
-4. `CLAUDE.md` – project memory and account information
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/chat` | POST | Chat with Alfred (Claude) |
+| `/api/dashboard` | GET | Aggregated dashboard data |
+| `/api/activity` | GET | Activity feed from events |
+| `/api/tasks` | GET/POST/PUT | Task CRUD |
+| `/api/follow-ups` | GET/POST/PUT | Follow-up CRUD |
+| `/api/contacts` | GET | Contact list |
+| `/api/meetings` | GET | Calendar meetings |
+| `/api/opportunities` | GET | Salesforce opportunities |
+| `/api/auth/login` | POST | Password authentication |
+| `/api/auth/logout` | POST | Clear session |
+| `/api/auth/check` | GET | Check auth status |
+| `/api/auth/status` | GET | Integration status |
+| `/api/auth/google` | GET | Google OAuth flow |
+| `/api/auth/google/callback` | GET | OAuth callback |
+| `/api/webhooks/granola` | POST | Transcript ingestion |
+| `/api/cron/*` | GET | Scheduled tasks |
 
 ---
 
@@ -285,7 +307,6 @@ CREATE TABLE events (
 | GitHub | `reidessmyer13-sys` | Personal account only |
 | Vercel | `reidessmyer13-9981` | Hobby plan, personal account |
 | Vercel Project ID | `prj_kE6PNtxoH2uwreeu7ewIfk84H0gD` | reid-essmyers-projects/alfred-hub |
-| Vercel User ID | `iJNwTjbEjQUggUtciJMc0HAB` | For API access |
 | Supabase | (configured in env) | Events table lives here |
 
 **Production URL:** `https://alfred-hub-iota.vercel.app`
@@ -296,31 +317,38 @@ CREATE TABLE events (
 
 ## Recent Updates (2026-02-04)
 
-### Deployed Features
-1. **Chat UI** – Browser-based chat at `/chat` for direct Alfred interaction
-2. **Chat API** – POST `/api/chat` with conversation history support
-3. **TypeScript Fixes** – All build errors resolved, strict mode passing
+### Complete UI Build
+1. **Dashboard** - Stats, insights, agenda, tasks, follow-ups, activity feed
+2. **Chat** - Enhanced context with buildAssistantContext
+3. **Tasks** - Full CRUD with filtering and priority
+4. **Follow-ups** - Full CRUD with urgency tracking
+5. **Contacts** - Directory with search and detail panel
+6. **Meetings** - Calendar view grouped by date
+7. **Integrations** - Status page with connect buttons
+8. **Settings** - Theme, notifications, account
 
-### TypeScript Fixes Applied
-- Removed unused `AttendeeContext` import in `calendar.ts`
-- Added missing `trigger_type` field in follow-ups API route
-- Extracted `RelatedThread` and `RelatedFollowUp` as standalone interfaces in postMeeting types
+### New Modules
+- `src/lib/ai/buildAssistantContext.ts` - AI context builder
+- `src/lib/notifications/slackNotifier.ts` - Slack notifications
+- `src/app/api/activity/route.ts` - Activity feed API
 
-### Environment Variables Configured in Vercel
-- `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
-- `ANTHROPIC_API_KEY`
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
-- `GRANOLA_WEBHOOK_SECRET`
-
----
-
-## Next Steps (Not Yet Implemented)
-
-1. **Dashboard Integration** – Connect v0 frontend to intelligence endpoints
-2. **Scheduled Briefings** – Configure Vercel cron jobs
-3. **Slack Integration** – Surface insights in Slack channels
-4. **Google OAuth Flow** – Complete OAuth setup for Calendar/Gmail access
+### New Context Graph Queries
+- `getActivityFeed()` - Chronological event feed
+- `getTodaysEvents()` - Today's events
+- `getEventStats()` - Event statistics
 
 ---
 
-*This snapshot represents the state of Alfred Hub as of commit `c0e7117`. Production deployment is live at https://alfred-hub-iota.vercel.app*
+## Post-Deployment Checklist
+
+- [ ] Set `ALFRED_PASSWORD` in Vercel env
+- [ ] Create Slack Incoming Webhook
+- [ ] Set `SLACK_WEBHOOK_URL` in Vercel env
+- [ ] Test login flow
+- [ ] Verify dashboard data loads
+- [ ] Test chat with Alfred
+- [ ] Create sample tasks/follow-ups
+
+---
+
+*This snapshot represents Alfred Hub with complete UI. Production deployment pending commit and push.*
